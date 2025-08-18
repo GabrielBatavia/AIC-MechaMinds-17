@@ -1,1 +1,9 @@
 .env
+# === weights ===
+models/**/*.pt
+models/**/*.onnx
+models/**/*.pth
+models/**/*.bin
+models/**/*.ckpt
+# === faiss index ===
+data/faiss/
