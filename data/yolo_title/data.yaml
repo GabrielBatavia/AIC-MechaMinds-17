@@ -1,0 +1,8 @@
+names:
+- title
+- body
+nc: 2
+path: C:/Users/GabrielBatavia/Documents/github_project/medverify-ai-agent/data/yolo_title
+test: images/test
+train: images/train
+val: images/valid

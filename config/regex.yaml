@@ -1,0 +1,21 @@
+# config/regex.yaml
+allow_prefix:
+  - DKL
+  - DBL
+  - DKI
+  - ML
+  - MD
+
+blacklist:
+  - '(?i)SAMPLE'
+  - '(?i)DEMO'
+
+patterns:
+  # Obat (NIE): DKL/DBL/DKI + 8–14 digit
+  - '(?:DKL|DBL|DKI)\d{8,14}'
+  # Pangan olahan: ML/MD + 12–15 digit
+  - '(?:ML|MD)\d{12,15}'
+  # Variasi BPOM RI ML/MD (tanpa spasi; pipeline kita sudah menghapus spasi sebelum validasi)
+  - 'BPOM(?:RI)?(?:ML|MD)\d{12,15}'
+  # PIRT (beberapa label pakai P-IRT)
+  - 'P-?IRT\d{12,17}'

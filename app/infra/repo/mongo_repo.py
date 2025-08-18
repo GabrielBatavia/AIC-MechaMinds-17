@@ -145,6 +145,7 @@ class MongoVerificationRepo(RepoPort):
         cursor = self.coll.find(
             {
                 "$or": [
+                    {"nie": {"$regex": rx}},  
                     {"name": {"$regex": rx}},
                     {"composition": {"$regex": rx}},
                     {"manufacturer": {"$regex": rx}},

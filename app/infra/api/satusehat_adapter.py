@@ -36,5 +36,20 @@ class SatusehatAdapter(SatusehatPort):
             if res.status_code == 404:
                 return None, "satusehat"
             res.raise_for_status()
-            d = res.json()["result"]
-            return Product(**d), "satusehat"
+            body = res.json()
+            d = (body.get("result") or {}) if isinstance(body, dict) else {}
+            if not d:
+                return None, "satusehat"
+            try:
+                return Product(**d), "satusehat"
+            except Exception:
+                # map minimal supaya tidak pecah kalau schema API beda
+                m = {
+                    "nie": d.get("nie") or d.get("identifier"),
+                    "name": d.get("name"),
+                    "manufacturer": d.get("manufacturer") or d.get("company"),
+                    "active": d.get("active", True),
+                    "state": d.get("state", "valid"),
+                    "updated_at": d.get("updated_at") or d.get("last_update"),
+                }
+                return Product(**m), "satusehat"

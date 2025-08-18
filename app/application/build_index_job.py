@@ -1,3 +1,4 @@
+# app/application/build_index_job.py
 from __future__ import annotations
 import os
 import asyncio
@@ -18,11 +19,13 @@ load_dotenv()
 BATCH_SIZE          = int(os.getenv("FAISS_BATCH", "512"))
 TRAIN_SAMPLES       = int(os.getenv("FAISS_TRAIN_SAMPLES", "20000"))  # ~20000 → ~120MB RAM (1536d fp32)
 ATLAS_SEARCH_INDEX  = os.getenv("ATLAS_SEARCH_INDEX")  # tidak dipakai di job ini
-FIELDS_PROJECTION   = {
-    "_id": 1, "faiss_id": 1,
+FIELDS_PROJECTION = {
+    "_id": 1, "faiss_id": 1, "nie": 1,
     "name": 1, "dosage_form": 1, "strength": 1,
     "composition": 1, "manufacturer": 1,
+    "category": 1, "status": 1,
 }
+
 
 # ── Helper: bikin text gabungan utk embedding ──────────────────────
 def make_text(d: Dict[str, Any]) -> str:
@@ -108,7 +111,7 @@ async def _run_build(limit: Optional[int] = None):
                         rng = np.random.default_rng(42)
                         sel = rng.choice(sample.shape[0], TRAIN_SAMPLES, replace=False)
                         sample = sample[sel]
-                    index.train(mat)
+                    index.train(sample) 
                     # Setelah train, data yang sudah di-buffer juga ditambahkan
                     index.add(train_mat, np.array(train_ids, dtype=np.int64))
                     train_vecs.clear(); train_ids.clear()

@@ -1,7 +1,9 @@
 # app/domain/detectors.py
 import re
+from pathlib import Path
 from .models import Product
 from pydantic import BaseModel
+
 
 def clean_nie(raw: str) -> str:
     return re.sub(r'[^A-Za-z0-9]', '', raw).upper()

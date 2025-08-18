@@ -1,0 +1,183 @@
+Folder PATH listing for volume Windows-SSD
+Volume serial number is E82E-EC57
+C:.
+|   .env
+|   .gitignore
+|   environment.yml
+|   main.py
+|   pytest.ini
+|   readme.md
+|   struktur.txt
+|   
++---.idea
+|   |   .gitignore
+|   |   medverify-ai-agent.iml
+|   |   misc.xml
+|   |   modules.xml
+|   |   vcs.xml
+|   |   workspace.xml
+|   |   
+|   \---inspectionProfiles
+|           profiles_settings.xml
+|           Project_Default.xml
+|           
++---.pytest_cache
+|   |   .gitignore
+|   |   CACHEDIR.TAG
+|   |   README.md
+|   |   
+|   \---v
+|       \---cache
+|               lastfailed
+|               nodeids
+|               stepwise
+|               
++---app
+|   |   container.py
+|   |   __init__.py
+|   |   
+|   +---application
+|   |   |   build_index_job.py
+|   |   |   commands.py
+|   |   |   retrieve_use_case.py
+|   |   |   use_cases.py
+|   |   |   
+|   |   \---__pycache__
+|   |           build_index_job.cpython-310.pyc
+|   |           commands.cpython-310.pyc
+|   |           commands.cpython-313.pyc
+|   |           use_cases.cpython-310.pyc
+|   |           use_cases.cpython-313.pyc
+|   |           
+|   +---domain
+|   |   |   detectors.py
+|   |   |   models.py
+|   |   |   ports.py
+|   |   |   
+|   |   \---__pycache__
+|   |           detectors.cpython-310.pyc
+|   |           detectors.cpython-313.pyc
+|   |           models.cpython-310.pyc
+|   |           models.cpython-313.pyc
+|   |           ports.cpython-310.pyc
+|   |           ports.cpython-313.pyc
+|   |           
+|   +---infra
+|   |   |   container.py
+|   |   |   
+|   |   +---api
+|   |   |   |   satusehat_adapter.py
+|   |   |   |   
+|   |   |   \---__pycache__
+|   |   |           satusehat_adapter.cpython-310.pyc
+|   |   |           
+|   |   +---cache
+|   |   |   |   redis_cache.py
+|   |   |   |   
+|   |   |   \---__pycache__
+|   |   |           redis_cache.cpython-310.pyc
+|   |   |           
+|   |   +---llm
+|   |   |   |   openai_adapter.py
+|   |   |   |   openai_embedder.py
+|   |   |   |   
+|   |   |   \---__pycache__
+|   |   |           openai_adapter.cpython-310.pyc
+|   |   |           openai_embedder.cpython-310.pyc
+|   |   |           
+|   |   +---ocr
+|   |   |   |   tesseract_adapter.py
+|   |   |   |   
+|   |   |   \---__pycache__
+|   |   |           tesseract_adapter.cpython-310.pyc
+|   |   |           
+|   |   +---repo
+|   |   |   |   mongo_repo.py
+|   |   |   |   
+|   |   |   \---__pycache__
+|   |   |           mongo_repo.cpython-310.pyc
+|   |   |           
+|   |   +---search
+|   |   |   |   faiss_index.py
+|   |   |   |   router.py
+|   |   |   |   
+|   |   |   \---__pycache__
+|   |   |           faiss_index.cpython-310.pyc
+|   |   |           
+|   |   \---__pycache__
+|   |           container.cpython-310.pyc
+|   |           
+|   +---presentation
+|   |   |   routers.py
+|   |   |   schemas.py
+|   |   |   
+|   |   \---__pycache__
+|   |           routers.cpython-310.pyc
+|   |           routers.cpython-313.pyc
+|   |           schemas.cpython-310.pyc
+|   |           schemas.cpython-313.pyc
+|   |           
+|   \---__pycache__
+|           __init__.cpython-310.pyc
+|           
++---crawler
+|   |   browser_fetcher.py
+|   |   cekbpom_client.py
+|   |   cekbpom_detail.py
+|   |   cekbpom_json.py
+|   |   cekbpom_parsers.py
+|   |   ingest.py
+|   |   
+|   +---faiss
+|   |       build_index.py
+|   |       
+|   +---jobs
+|   |   |   crawl_categories.py
+|   |   |   crawl_obat.py
+|   |   |   search_terms.py
+|   |   |   
+|   |   \---__pycache__
+|   |           crawl_categories.cpython-310.pyc
+|   |           crawl_obat.cpython-310.pyc
+|   |           search_terms.cpython-310.pyc
+|   |           
+|   \---__pycache__
+|           browser_fetcher.cpython-310.pyc
+|           cekbpom_client.cpython-310.pyc
+|           cekbpom_detail.cpython-310.pyc
+|           cekbpom_json.cpython-310.pyc
+|           cekbpom_parsers.cpython-310.pyc
+|           ingest.cpython-310.pyc
+|           
++---data
+|   \---faiss
+|           ids.npy
+|           products.index
+|           
++---scripts
+|   |   debug_dt_sample.py
+|   |   sniff_cekbpom_requests.py
+|   |   sniff_click_detail.py
+|   |   
+|   \---__pycache__
+|           debug_dt_sample.cpython-310.pyc
+|           
++---tests
+|   +---integration
+|   |   |   test_verify_route.py
+|   |   |   
+|   |   \---__pycache__
+|   |           test_verify_route.cpython-310-pytest-8.4.1.pyc
+|   |           test_verify_route.cpython-313-pytest-8.3.5.pyc
+|   |           
+|   \---unit
+|       |   test_detectors.py
+|       |   
+|       \---__pycache__
+|               test_detectors.cpython-310-pytest-8.4.1.pyc
+|               test_detectors.cpython-313-pytest-8.3.5.pyc
+|               
+\---__pycache__
+        main.cpython-310.pyc
+        main.cpython-313.pyc
+        

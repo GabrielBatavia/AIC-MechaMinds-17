@@ -1,0 +1,21 @@
+composition_query: >
+  User asks about composition for {{product_or_nie}}.
+  Search official label or BPOM monograph. Extract exact composition list with strengths.
+  Return only what you can cite.
+
+interactions: >
+  User asks drug interactions for {{active_ingredient}}.
+  Prefer trusted monographs (BPOM, WHO, FDA, MHRA).
+  Summarize key interactions and clinical relevance (major/moderate) with citations.
+
+pregnancy_safety: >
+  User asks pregnancy/lactation safety for {{active_ingredient}}.
+  Provide category (if applicable), key warnings, and counseling points with citations.
+
+dosage_query: >
+  User asks dosage for {{product_or_nie}}.
+  Cite official label dosing (adult/child if relevant), max daily dose, and cautions.
+
+manufacturer_info: >
+  User asks manufacturer info for {{product_or_nie}} or {{manufacturer}}.
+  Verify legal name, address (if available), and BPOM registration relations, with sources.
