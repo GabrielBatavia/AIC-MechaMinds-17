@@ -1,0 +1,31 @@
+# web & utils
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+python-multipart
+httpx
+requests
+python-json-logger
+tqdm
+orjson
+
+# db & cache
+pymongo
+motor
+redis
+
+# nlp/llm/embedding (opsional)
+tiktoken
+sentence-transformers
+
+# cv/ocr
+opencv-python
+pillow
+ultralytics
+
+# data science (opsional, cukup minimum)
+numpy
+pandas
+scikit-learn
+scipy

@@ -1,0 +1,28 @@
+FROM python:3.10-slim
+
+# Sistem libs untuk cv2, tesseract, pdf/image ops, dll
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential git curl ca-certificates \
+    libglib2.0-0 libsm6 libxext6 libxrender1 libgl1 \
+    tesseract-ocr poppler-utils ffmpeg \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy requirements terlebih dahulu agar layer cache efektif
+COPY requirements.txt /app/requirements.txt
+
+# Torch CPU (ubah versi bila perlu)
+RUN pip install --no-cache-dir --upgrade pip \
+ && pip install --no-cache-dir -r /app/requirements.txt \
+ && pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu \
+        "torch==2.8.*" "torchvision==0.23.*" "torchaudio==2.8.*"
+
+# Salin seluruh repo
+COPY . /app
+
+# Default env
+ENV PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Container akan pakai command dari docker-compose (service-specific)
