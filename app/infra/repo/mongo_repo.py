@@ -46,7 +46,6 @@ class MongoVerificationRepo(RepoPort):
         try:
             await self.coll.create_index([("nie", ASCENDING)], unique=True, sparse=True)
         except Exception:
-            # jika sudah ada unique index, abaikan
             pass
 
         try:
@@ -54,8 +53,7 @@ class MongoVerificationRepo(RepoPort):
         except Exception:
             pass
 
-        # Fallback text index untuk lingkungan yang tidak punya Atlas Search
-        # (jika sudah ada text index lain, ini bisa raise → kita abaikan)
+        # Fallback text index
         try:
             await self.coll.create_index(
                 [("name", TEXT), ("composition", TEXT), ("manufacturer", TEXT)]
@@ -122,7 +120,6 @@ class MongoVerificationRepo(RepoPort):
                 },
                 {"$limit": limit},
                 {"$addFields": {"_score": {"$meta": "searchScore"}, "_src": {"$literal": "lex"}}},
-                # Proyeksi ringan agar respons konsisten
                 {
                     "$project": {
                         "name": 1,
@@ -132,6 +129,10 @@ class MongoVerificationRepo(RepoPort):
                         "manufacturer": 1,
                         "category": 1,
                         "status": 1,
+                        "state": 1,
+                        "updated_at": 1,
+                        "published_at": 1,
+                        "last_seen": 1,
                         "_score": 1,
                         "_src": 1,
                     }
@@ -145,7 +146,7 @@ class MongoVerificationRepo(RepoPort):
         cursor = self.coll.find(
             {
                 "$or": [
-                    {"nie": {"$regex": rx}},  
+                    {"nie": {"$regex": rx}},
                     {"name": {"$regex": rx}},
                     {"composition": {"$regex": rx}},
                     {"manufacturer": {"$regex": rx}},
@@ -159,15 +160,19 @@ class MongoVerificationRepo(RepoPort):
                 "manufacturer": 1,
                 "category": 1,
                 "status": 1,
+                "state": 1,
+                "updated_at": 1,
+                "published_at": 1,
+                "last_seen": 1,
             },
         ).limit(limit)
 
         docs = [doc async for doc in cursor]
 
-        # Skor heuristik ringkas: rasio panjang query vs panjang name (semakin dekat → makin tinggi)
+        # Skor heuristik ringkas
         for d in docs:
             name = d.get("name", "") or ""
-            d["_score"] = min(1.0, len(q) / max(1, len(name)))
+            d["_score"] = min(1.0, len(q) / max(1, len(name))) if name else 0.5
             d["_src"] = "lex"
         return docs
 
@@ -191,10 +196,18 @@ class MongoVerificationRepo(RepoPort):
                 "manufacturer": 1,
                 "category": 1,
                 "status": 1,
+                "state": 1,
+                "updated_at": 1,
+                "published_at": 1,
+                "last_seen": 1,
                 "faiss_id": 1,
             },
         )
-        return [doc async for doc in cursor]
+        docs = [doc async for doc in cursor]
+        for d in docs:
+            d["_src"] = "faiss_map"
+            d["_score"] = 0.75  # placeholder; skor asli berasal dari FAISS similarity
+        return docs
 
     # ──────────────────────────────────────────────────────────────
     #  Logging (tetap dari versi sebelumnya)

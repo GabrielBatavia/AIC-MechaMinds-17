@@ -44,6 +44,10 @@ class FaissVectorIndex:
       - IVFPQ bila sample cukup; FLAT jika kecil/FAISS_FORCE_FLAT=1.
       - add() memastikan trained dulu (auto-train atau fallback FLAT).
       - tidak pernah akses .nlist tanpa cek tipe.
+
+    NOTE:
+      Nilai D (distance) yang dikembalikan .search() perlu dipetakan ke skor kesamaan
+      di layer atas (router) sebelum dipakai confidence aggregator.
     """
     def __init__(self):
         self.index: faiss.Index | None = None
@@ -70,7 +74,6 @@ class FaissVectorIndex:
             elif isinstance(inner, faiss.IndexFlatL2):
                 self.mode = "flat"
             else:
-                # fallback aman
                 self.index = self._make_flat()
                 self.mode = "flat"
             self._loaded = True
@@ -91,7 +94,6 @@ class FaissVectorIndex:
         return bool(self.index and self.index.is_trained)
 
     def train(self, vectors: np.ndarray):
-        """Latih index sesuai ukuran sampel. Aman dipanggil berkali-kali."""
         if vectors is None or vectors.size == 0:
             if self.index is None:
                 self.index = self._make_flat(); self.mode = "flat"
@@ -117,7 +119,6 @@ class FaissVectorIndex:
             inner.train(vectors)
             inner.nprobe = _NPROBE
         else:
-            # Shouldn't happen, tapi aman
             _dbg("train(): inner not IVFPQ → switch to FLAT")
             self.index = self._make_flat(); self.mode = "flat"
         self._loaded = True
@@ -125,7 +126,6 @@ class FaissVectorIndex:
     def add(self, vectors: np.ndarray, ids: np.ndarray):
         assert vectors.shape[0] == ids.shape[0]
         if self.index is None:
-            # buat FLAT dulu, cepat & no-train
             self.index = self._make_flat(); self.mode = "flat"
             _dbg("add(): created FLAT (lazy)")
 
@@ -160,6 +160,7 @@ class FaissVectorIndex:
         except Exception:
             pass
         _dbg(f"persist(): saved → {_FAISS_PATH}")
+
 
 def build_or_update_index(*, products, embedder, batch_size: int = 1024):
     idx = FaissVectorIndex(); idx.load()

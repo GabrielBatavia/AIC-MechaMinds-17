@@ -1,3 +1,4 @@
+# app/infra/api/verify.py
 from fastapi import APIRouter, Depends, HTTPException
 from app.services.query_parser import parse_user_query
 from app.services.verification_service import VerificationService

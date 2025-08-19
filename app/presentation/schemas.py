@@ -73,3 +73,26 @@ class ScanResponse(BaseModel):
     timings: Dict[str, int]
     boxes: Optional[List[BoxItem]] = None
     title_box: Optional[BoxItem] = None
+
+
+class EvidenceSchema(BaseModel):
+    source: str
+    product_id: Optional[str]
+    name: Optional[str]
+    match_strength: str
+    quality: float
+    recency_factor: float
+    name_confidence: float
+    provider_score: float
+    reasons: List[str]
+    payload: Dict[str, Any] = {}
+    debug: Dict[str, Any] = {}
+
+class VerificationResponse(BaseModel):
+    data: Dict[str, Any]
+    message: str
+    confidence: float
+    source: str
+    explanation: str
+    trace: List[EvidenceSchema] = []
+    flags: List[str] = []

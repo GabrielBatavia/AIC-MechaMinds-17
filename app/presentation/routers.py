@@ -11,8 +11,9 @@ from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
 
 from app.presentation.schemas import (
-    VerifyRequest, VerifyResponse,
+    VerifyRequest,
     SearchRequest, SearchResponse,
+    VerificationResponse,  # ⬅️ use the richer response
 )
 from app.container import get_verify_uc, get_retrieve_use_case
 
@@ -28,18 +29,7 @@ from app.services.prompt_service import PromptService
 router = APIRouter(prefix="/v1")
 
 # ── VERIFY: JSON ONLY ─────────────────────────────────────────────
-# @router.post("/verify", response_model=VerifyResponse)
-# async def verify_label(
-#     req: VerifyRequest,
-#     uc = Depends(get_verify_uc),
-# ):
-#     try:
-#         return await uc.execute(payload=req, image=None)
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.post("/verify", response_model=VerifyResponse)
+@router.post("/verify", response_model=VerificationResponse)
 async def verify_label(
     req: VerifyRequest,
     uc = Depends(get_verify_uc),
@@ -47,7 +37,7 @@ async def verify_label(
     session_id: str | None = Header(None, alias="X-Session-Id"),
 ):
     try:
-        out = await uc.execute(payload=req, image=None)
+        out = await uc.execute(payload=req, image=None)  # dict sesuai VerificationResponse
 
         # ⬅️ simpan ringkasan verifikasi ke session (kalau header ada)
         if session_id:
@@ -58,11 +48,12 @@ async def verify_label(
                     "name": prod.get("name"),
                     "nie": prod.get("nie"),
                     "manufacturer": prod.get("manufacturer"),
-                    # kalau ingin, kamu bisa enrich dari repo untuk source_url
                     "source_url": None,
                 },
                 "status_label": data.get("status"),
                 "source_label": data.get("source"),
+                "confidence": out.get("confidence"),
+                "explanation": out.get("explanation"),
             }
             await sess.save_verification(session_id, tosave)
 
@@ -71,7 +62,7 @@ async def verify_label(
         raise HTTPException(status_code=500, detail=str(e))
 
 # ── VERIFY: MULTIPART (dengan foto) ───────────────────────────────
-@router.post("/verify-photo", response_model=VerifyResponse)
+@router.post("/verify-photo", response_model=VerificationResponse)
 async def verify_label_photo(
     img: UploadFile = File(...),
     nie: str | None = Form(None),
@@ -139,14 +130,18 @@ async def debug_nie(nie: str, uc = Depends(get_verify_uc)):
 
 @router.get("/debug/verify/{nie}")
 async def debug_verify(nie: str, uc = Depends(get_verify_uc)):
-    prod, src = await uc._lookup(nie, None)
-    from app.domain.detectors import interpret
-    verdict = interpret(prod)
+    # gunakan pipeline baru untuk konsistensi
+    from app.domain.models.confidence import EvidenceSource
+    result = await uc._verify_with_confidence(nie, None)
+
     payload = {
         "in_nie": nie,
-        "lookup_source": src,
-        "product": (prod.model_dump() if prod else None),
-        "verdict": verdict.model_dump(),
+        "decision": result.decision,
+        "confidence": result.confidence,
+        "top_source": result.top_source.value if result.top_source else None,
+        "explanation": result.explanation,
+        "winner": (result.winner.payload if result.winner else None),
+        "all_evidence": [e.payload for e in result.all_evidence],
     }
     content = jsonable_encoder(
         payload,

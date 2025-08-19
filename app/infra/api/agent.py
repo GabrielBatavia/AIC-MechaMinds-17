@@ -1,9 +1,10 @@
+# app/infra/api/agent.py
 from fastapi import APIRouter, Depends, HTTPException
 from app.services.session_state import SessionStateService
 from app.services.medical_classifier import classify
 from app.services.prompt_service import PromptService
 from app.services.agent_orchestrator import AgentOrchestrator
-from app.api.deps import get_session_state, get_prompt_service, get_agent_orchestrator  # <-- ADD
+from app.api.deps import get_session_state, get_prompt_service, get_agent_orchestrator
 
 router = APIRouter()
 
@@ -16,7 +17,9 @@ async def agent(req: dict,
         raise HTTPException(status_code=400, detail="Missing session_id or text")
 
     ctx = await sess.get_agent_context(req["session_id"])
-    label = classify(req["text"])
+
+    # ⬇️ PASS CONTEXT ke classifier biar paham “obat ini”, “apa itu <produk>”, dst.
+    label = classify(req["text"], ctx)
     await sess.set_last_intent(req["session_id"], label)
 
     sys_prompt = prompts.system_prompt()
