@@ -4,6 +4,9 @@ from __future__ import annotations
 from datetime import datetime
 from bson import ObjectId
 
+from fastapi import Depends
+from app.infra.api.security import require_api_key
+
 from fastapi import (
     APIRouter, Depends, UploadFile, File, HTTPException, Form, Body, Header
 )
@@ -26,7 +29,7 @@ from app.services.agent_orchestrator import AgentOrchestrator
 from app.services.session_state import SessionStateService
 from app.services.prompt_service import PromptService
 
-router = APIRouter(prefix="/v1")
+router = APIRouter(prefix="/v1", dependencies=[Depends(require_api_key)])
 
 # ── VERIFY: JSON ONLY ─────────────────────────────────────────────
 @router.post("/verify", response_model=VerificationResponse)
