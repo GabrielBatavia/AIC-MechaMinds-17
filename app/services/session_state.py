@@ -47,9 +47,12 @@ class SessionStateService:
 
     # ---- Snapshot for Agent context ----
     async def get_agent_context(self, session_id: str) -> dict:
+        turns = await self.get_last_turns(session_id)
         return {
             "verification": await self.get_verification(session_id),
             "last_intent": await self.get_last_intent(session_id),
-            "last_turns": await self.get_last_turns(session_id),
+            "last_turns": turns,   # keep for back-compat
+            "turns": turns,        # what the orchestrator expects
             "facts": await self.get_agent_facts(session_id),
         }
+

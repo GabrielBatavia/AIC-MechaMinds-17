@@ -1,3 +1,4 @@
+# app/infra/ocr/tesseract_title_adapter.py
 import os, time
 from typing import List, Tuple, Dict, Any
 import cv2, pytesseract

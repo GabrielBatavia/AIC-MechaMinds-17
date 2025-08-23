@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from typing import Optional, Dict
 
+
 # ==== Label set (string supaya kompatibel dgn code lain) ====
 VERIFY_BPOM          = "verify_bpom"
 WHAT_IS              = "what_is"              # “apa itu oskadon”
@@ -20,6 +21,18 @@ PRICE_AVAILABILITY   = "price_availability"   # harga/ketersediaan/tempat beli
 CHEMICAL_QUERY       = "chemical_query"       # murni kimia (senyawa, reaksi, struktur)
 GENERAL_DRUG_INFO    = "general_drug_info"    # fallback aman
 OUT_OF_SCOPE         = "out_of_scope"         # benar2 tidak relevan
+
+
+NON_MEDICAL_PATTERNS = [
+    r"^\s*(halo|hai|hi|selamat (pagi|siang|sore|malam)|good (morning|evening|night))\s*[.!?]*\s*$",
+    r"\b(terima kasih|thanks|makasih)\b",
+    r"\b(apa arti|artinya|translate|terjemahkan)\b",
+    r"\b(cuaca|sepak bola|film|game|coding|javascript|python)\b",
+]
+
+# Hint kata medis agar tidak false positive
+MEDICAL_HINTS = r"\b(obat|bpom|nie|komposisi|kandungan|dosis|aturan pakai|efek samping|kontraindikasi|interaksi|kehamilan|menyusui|penyimpanan|peringatan)\b"
+
 
 # ==== Regex util ====
 RX_NIE = re.compile(r"\b([A-Z]{1,3}\w{5,12}\w?)\b", re.I)  # longgar; NIE valid disaring downstream
@@ -127,4 +140,18 @@ def classify(user_text: str, ctx: Optional[Dict] = None) -> str:
         return WHAT_IS
 
     # 6) fallback aman → general_drug_info (jangan out_of_scope kecuali jelas)
+    if _match_any(txt, NON_MEDICAL_PATTERNS):
+        return OUT_OF_SCOPE
+
+    # 7) Jika tidak ada hint medis & tidak ada canon di sesi → out_of_scope
+    verification = ((ctx or {}).get("verification") or {}) if isinstance(ctx, dict) else {}
+    has_canon = bool(
+        ((verification.get("canon") or {}).get("name")) or
+        ((verification.get("canon") or {}).get("nie"))
+    )
+    if not has_canon and not re.search(MEDICAL_HINTS, txt, flags=re.I):
+        return OUT_OF_SCOPE
+
+    # 8) fallback
     return GENERAL_DRUG_INFO
+

@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional, Literal
 
 # ── VERIFY (existing) ─────────────────────────────────────────────
 class VerifyRequest(BaseModel):
+    session_id: Optional[str] = Field(None, description="Session id (if not using header)")
     nie: str | None = Field(None, description="Raw BPOM/NIE code")
     text: str | None = Field(None, description="OCR text (optional)")
 
@@ -96,3 +97,12 @@ class VerificationResponse(BaseModel):
     explanation: str
     trace: List[EvidenceSchema] = []
     flags: List[str] = []
+
+
+class VerificationPartial(BaseModel):
+    reply_kind: Literal["scan_incomplete"] = "scan_incomplete"
+    need_more_input: bool = True
+    reason: str
+    suggestions: List[str] = []
+    # Info tambahan untuk UI/telemetri (opsional, struktur longgar)
+    scan: dict = {}

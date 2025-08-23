@@ -4,6 +4,12 @@ from __future__ import annotations
 import json
 import datetime as dt
 from typing import Any, Dict, List, Optional
+from pathlib import Path
+import tempfile, shutil, os
+from typing import Union
+from fastapi import UploadFile
+from PIL import Image
+import numpy as np
 
 from app.domain.ports import (
     OcrPort, SatusehatPort, RepoPort, CachePort, LlmPort
@@ -19,6 +25,9 @@ from app.domain.confidence import (
     Evidence, EvidenceSource, MatchStrength, VerificationResult
 )
 from app.domain.services.verification_aggregator import aggregate
+
+import logging
+logger = logging.getLogger("medverify.verify")
 
 
 def _dt_parse(x: Any) -> Optional[dt.datetime]:
@@ -94,83 +103,217 @@ class VerifyLabelUseCase:
         self.satusehat = satusehat  # tidak digunakan lagi
         self.search = search_router or SearchRouter(repo=self.repo)
 
-    async def execute(self, payload, image):
-        cmd = VerifyLabelCommand(
-            raw_nie=getattr(payload, "nie", None),
-            raw_text=getattr(payload, "text", None),
-            image_path=image.file if image else None,
-        )
+    # async def execute(self, payload, image):
+    #     cmd = VerifyLabelCommand(
+    #         raw_nie=getattr(payload, "nie", None),
+    #         raw_text=getattr(payload, "text", None),
+    #         image_path=image.file if image else None,
+    #     )
 
-        nie, text = await extract_info(cmd, self.ocr)
+    #     nie, text = await extract_info(cmd, self.ocr)
 
-        # NEW: kumpulkan evidence dan agregasi → hasil + confidence
-        agg_result = await self._verify_with_confidence(nie, text)
+    #     # NEW: kumpulkan evidence dan agregasi → hasil + confidence
+    #     agg_result = await self._verify_with_confidence(nie, text)
 
-        # simpan log (pakai NIE input atau NIE pemenang jika ada)
-        key = nie or (agg_result.winner.product_id if agg_result.winner else "-")
+    #     # simpan log (pakai NIE input atau NIE pemenang jika ada)
+    #     key = nie or (agg_result.winner.product_id if agg_result.winner else "-")
+    #     try:
+    #         await self.repo.save_lookup(key, agg_result.decision)
+    #     except Exception:
+    #         pass
+
+    #     # siapkan data payload untuk response
+    #     winner_payload = (agg_result.winner.payload if agg_result.winner else {}) or {}
+    #     data = {
+    #         "status": winner_payload.get("state")
+    #                   or winner_payload.get("status")
+    #                   or ("unregistered" if (winner_payload.get("not_found") or winner_payload.get("unregistered")) else "unknown"),
+    #         "source": agg_result.top_source.value if agg_result.top_source else "none",
+    #         "product": {
+    #             "nie": winner_payload.get("nie") or winner_payload.get("_id"),
+    #             "name": winner_payload.get("name"),
+    #             "manufacturer": winner_payload.get("manufacturer"),
+    #             "category": winner_payload.get("category"),
+    #             "composition": winner_payload.get("composition"),
+    #             "updated_at": winner_payload.get("updated_at")
+    #                            or winner_payload.get("published_at")
+    #                            or winner_payload.get("last_seen"),
+    #         },
+    #     }
+
+    #     # OPTIONAL: ringkasan natural dari LLM (aman jika offline → fallback)
+    #     # kita berikan ringkasan atas result agregasi agar konsisten
+    #     try:
+    #         expl = await self.llm.explain({
+    #             "decision": agg_result.decision,
+    #             "confidence": agg_result.confidence,
+    #             "source": agg_result.top_source.value if agg_result.top_source else "none",
+    #             "product": data["product"],
+    #             "explanation": agg_result.explanation,
+    #         })
+    #     except Exception:
+    #         expl = agg_result.explanation
+
+    #     # Response final mengikuti model baru (VerificationResponse)
+    #     trace = []
+    #     for ev in agg_result.all_evidence:
+    #         trace.append({
+    #             "source": ev.source.value,
+    #             "product_id": ev.product_id,
+    #             "name": ev.name,
+    #             "match_strength": ev.match_strength.value,
+    #             "quality": ev.quality,
+    #             "recency_factor": ev.recency_factor,
+    #             "name_confidence": ev.name_confidence,
+    #             "provider_score": ev.provider_score,
+    #             "reasons": ev.reasons,
+    #             "payload": ev.payload or {},
+    #             "debug": ev.debug or {},
+    #         })
+
+    #     return {
+    #         "data": data,
+    #         "message": expl,
+    #         "confidence": round(float(agg_result.confidence or 0.0), 3),
+    #         "source": data["source"],
+    #         "explanation": agg_result.explanation,
+    #         "trace": trace,
+    #         "flags": [],
+    #     }
+
+    async def execute(self, payload, image: Union[UploadFile, Path, bytes, bytearray, np.ndarray, Image.Image, None]):
+        tmp_path: Path | None = None
+        image_path: Path | None = None
+
         try:
-            await self.repo.save_lookup(key, agg_result.decision)
-        except Exception:
-            pass
+            # --- Normalize ke Path ---
+            if isinstance(image, Path):
+                image_path = image
 
-        # siapkan data payload untuk response
-        winner_payload = (agg_result.winner.payload if agg_result.winner else {}) or {}
-        data = {
-            "status": winner_payload.get("state")
-                      or winner_payload.get("status")
-                      or ("unregistered" if (winner_payload.get("not_found") or winner_payload.get("unregistered")) else "unknown"),
-            "source": agg_result.top_source.value if agg_result.top_source else "none",
-            "product": {
-                "nie": winner_payload.get("nie") or winner_payload.get("_id"),
-                "name": winner_payload.get("name"),
-                "manufacturer": winner_payload.get("manufacturer"),
-                "category": winner_payload.get("category"),
-                "composition": winner_payload.get("composition"),
-                "updated_at": winner_payload.get("updated_at")
-                               or winner_payload.get("published_at")
-                               or winner_payload.get("last_seen"),
-            },
-        }
+            elif isinstance(image, UploadFile):
+                suffix = Path(image.filename or "").suffix or ".jpg"
+                with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+                    shutil.copyfileobj(image.file, tmp)
+                    tmp_path = Path(tmp.name)
+                image_path = tmp_path
 
-        # OPTIONAL: ringkasan natural dari LLM (aman jika offline → fallback)
-        # kita berikan ringkasan atas result agregasi agar konsisten
-        try:
-            expl = await self.llm.explain({
-                "decision": agg_result.decision,
-                "confidence": agg_result.confidence,
+            elif isinstance(image, (bytes, bytearray)):
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
+                    tmp.write(bytes(image))
+                    tmp_path = Path(tmp.name)
+                image_path = tmp_path
+
+            elif isinstance(image, Image.Image):
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
+                    image.save(tmp, format="PNG")
+                    tmp_path = Path(tmp.name)
+                image_path = tmp_path
+
+            elif isinstance(image, np.ndarray):
+                pil = Image.fromarray(image)
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
+                    pil.save(tmp, format="PNG")
+                    tmp_path = Path(tmp.name)
+                image_path = tmp_path
+
+            else:
+                image_path = None  # /v1/verify (tanpa foto)
+
+            # --- Build command dengan Path (kontrak lama tetap) ---
+            cmd = VerifyLabelCommand(
+                raw_nie=getattr(payload, "nie", None),
+                raw_text=getattr(payload, "text", None),
+                image_path=image_path,
+            )
+
+            nie, text = await extract_info(cmd, self.ocr)
+
+            # (lanjutan method kamu tetap sama di bawah ini)
+            agg_result = await self._verify_with_confidence(nie, text)
+            key = nie or (agg_result.winner.product_id if agg_result.winner else "-")
+            try:
+                await self.repo.save_lookup(key, agg_result.decision)
+            except Exception:
+                pass
+
+            winner_payload = (agg_result.winner.payload if agg_result.winner else {}) or {}
+            data = {
+                "status": winner_payload.get("state")
+                          or winner_payload.get("status")
+                          or ("unregistered" if (winner_payload.get("not_found") or winner_payload.get("unregistered")) else "unknown"),
                 "source": agg_result.top_source.value if agg_result.top_source else "none",
-                "product": data["product"],
+                "product": {
+                    "nie": winner_payload.get("nie") or winner_payload.get("_id"),
+                    "name": winner_payload.get("name"),
+                    "manufacturer": winner_payload.get("manufacturer"),
+                    "category": winner_payload.get("category"),
+                    "composition": winner_payload.get("composition"),
+                    "updated_at": winner_payload.get("updated_at")
+                                   or winner_payload.get("published_at")
+                                   or winner_payload.get("last_seen"),
+                },
+            }
+
+            try:
+                expl = await self.llm.explain({
+                    "decision": agg_result.decision,
+                    "confidence": agg_result.confidence,
+                    "source": data["source"],
+                    "product": data["product"],
+                    "explanation": agg_result.explanation,
+                })
+            except Exception:
+                expl = agg_result.explanation
+
+            trace = []
+            for ev in agg_result.all_evidence:
+                trace.append({
+                    "source": ev.source.value,
+                    "product_id": ev.product_id,
+                    "name": ev.name,
+                    "match_strength": ev.match_strength.value,
+                    "quality": ev.quality,
+                    "recency_factor": ev.recency_factor,
+                    "name_confidence": ev.name_confidence,
+                    "provider_score": ev.provider_score,
+                    "reasons": ev.reasons,
+                    "payload": ev.payload or {},
+                    "debug": ev.debug or {},
+                })
+
+            # ----- Logging ringkas, pakai variabel yang sudah dihitung di atas -----
+            logger.info(
+                "[verify] nie_in=%s text_in=%s -> nie_extracted=%s text_extracted=%s decision=%s conf=%.3f source=%s",
+                getattr(payload, "nie", None),
+                getattr(payload, "text", None),
+                nie, text,
+                agg_result.decision,
+                float(agg_result.confidence or 0.0),
+                data["source"],
+            )
+            if agg_result.winner:
+                logger.info("[verify] winner id=%s name=%s", agg_result.winner.product_id, agg_result.winner.name)
+            else:
+                logger.info("[verify] no winner")
+
+
+            return {
+                "data": data,
+                "message": expl,
+                "confidence": round(float(agg_result.confidence or 0.0), 3),
+                "source": data["source"],
                 "explanation": agg_result.explanation,
-            })
-        except Exception:
-            expl = agg_result.explanation
+                "trace": trace,
+                "flags": [],
+            }
 
-        # Response final mengikuti model baru (VerificationResponse)
-        trace = []
-        for ev in agg_result.all_evidence:
-            trace.append({
-                "source": ev.source.value,
-                "product_id": ev.product_id,
-                "name": ev.name,
-                "match_strength": ev.match_strength.value,
-                "quality": ev.quality,
-                "recency_factor": ev.recency_factor,
-                "name_confidence": ev.name_confidence,
-                "provider_score": ev.provider_score,
-                "reasons": ev.reasons,
-                "payload": ev.payload or {},
-                "debug": ev.debug or {},
-            })
-
-        return {
-            "data": data,
-            "message": expl,
-            "confidence": round(float(agg_result.confidence or 0.0), 3),
-            "source": data["source"],
-            "explanation": agg_result.explanation,
-            "trace": trace,
-            "flags": [],
-        }
+        finally:
+            # 4) Bersihkan file temp jika kita yang buat
+            if tmp_path is not None:
+                try:
+                    os.remove(tmp_path)
+                except Exception:
+                    pass
 
     async def _verify_with_confidence(self, nie: str | None, text: str | None) -> VerificationResult:
         """

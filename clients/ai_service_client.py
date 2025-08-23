@@ -1,3 +1,4 @@
+# clients/ai_service_client.py
 import requests
 from typing import Optional, Dict, Any
 
@@ -36,4 +37,15 @@ class MedVerifyClient:
     def agent(self, *, session_id: str, text: str, timeout:int=60) -> Dict[str,Any]:
         payload = {"session_id": session_id, "text": text}
         r = requests.post(f"{self.base_url}/v1/agent", json=payload, headers=self.headers, timeout=timeout)
+        r.raise_for_status(); return r.json()
+
+    def detect(self, *, filepath: str, timeout:int=30):
+        h = {"X-Api-Key": self.headers["X-Api-Key"]}
+        files = {"file": (filepath, open(filepath, "rb"), "image/jpeg")}
+        r = requests.post(f"{self.base_url}/v1/detect", headers=h, files=files, timeout=timeout)
+        r.raise_for_status(); return r.json()
+
+    def detect_url(self, *, url: str, timeout:int=30):
+        payload = {"url": url}
+        r = requests.post(f"{self.base_url}/v1/detect-url", json=payload, headers=self.headers, timeout=timeout)
         r.raise_for_status(); return r.json()

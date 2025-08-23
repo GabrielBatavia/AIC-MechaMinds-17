@@ -6,6 +6,16 @@ import os
 import numpy as np
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from PIL import Image, UnidentifiedImageError
+from pathlib import Path
+from fastapi import UploadFile, File, HTTPException
+from fastapi import Response
+import io
+import uuid
+import logging
+from fastapi import Request
+
+
 
 # Router utama v1 (sudah dilindungi X-Api-Key via dependencies di routers.py)
 from app.presentation.routers import router as v1_router
@@ -15,16 +25,50 @@ app = FastAPI(
     version=os.getenv("APP_VERSION", "0.1.0"),
 )
 
+# --- logging config HARUS di atas ---
+import logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+
+# gunakan logger aplikasi sendiri, bukan 'uvicorn.access'
+app_logger = logging.getLogger("medverify.request")
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    app_logger.info(f"➡️ Incoming {request.method} {request.url.path}")
+    try:
+        response = await call_next(request)
+        app_logger.info(f"⬅️ Completed {request.method} {request.url.path} -> {response.status_code}")
+        return response
+    except Exception:
+        app_logger.exception(f"❌ Unhandled error on {request.method} {request.url.path}")
+        raise
+
 # ─────────────────────────────────────────────────────────────
 # CORS (atur via env: CORS_ALLOW_ORIGINS="https://foo.com,https://bar.com")
 # ─────────────────────────────────────────────────────────────
+raw_origins = os.getenv("CORS_ALLOW_ORIGINS", "*")
+allow_origins = [o.strip().rstrip("/") for o in raw_origins.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[o.strip() for o in os.getenv("CORS_ALLOW_ORIGINS", "*").split(",") if o.strip()],
+    allow_origins=[
+        "https://quail-enormous-cobra.ngrok-free.app",
+        "https://pulseprotect.vercel.app",    # buat production
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ─────────────────────────────────────────────────────────────
+# Files / Uploads directory
+# ─────────────────────────────────────────────────────────────
+UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", "uploads")).resolve()
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
 
 # ─────────────────────────────────────────────────────────────
 # Routes
@@ -113,3 +157,48 @@ async def warmup():
             ocr.ocr_lines(np.zeros((64, 256, 3), dtype="uint8"))
     except Exception:
         pass
+
+
+@app.get("/ping")
+def ping():
+    return {"message": "Server YOLO aktif"}
+
+
+ALLOWED_CT = {"image/jpeg", "image/png", "image/webp"}
+
+@app.post("/receive-image")
+async def receive_image(file: UploadFile = File(...)):
+    try:
+        # Baca file bytes
+        contents = await file.read()
+
+        # Buka pakai PIL buat dapetin info gambar
+        image = Image.open(io.BytesIO(contents))
+        image_size = image.size  # (width, height)
+        image_format = image.format
+
+        # Generate nama unik biar gak ketimpa
+        unique_filename = f"{uuid.uuid4()}.{image_format.lower() if image_format else 'jpg'}"
+        file_path = os.path.join(UPLOAD_DIR, unique_filename)
+
+        # Simpan ke folder
+        with open(file_path, "wb") as f:
+            f.write(contents)
+
+        return {
+            "status": "success",
+            "message": "Gambar berhasil diterima dan disimpan",
+            "image_details": {
+                "original_filename": file.filename,
+                "saved_filename": unique_filename,
+                "save_path": file_path,
+                "size": image_size,
+                "format": image_format,
+            }
+        }
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.options("/{rest_of_path:path}")
+async def any_options(rest_of_path: str):
+    return Response(status_code=204)

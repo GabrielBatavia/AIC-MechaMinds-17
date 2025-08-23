@@ -72,9 +72,14 @@ class OpenAILlm(LlmPort):
         user: Any,
         use_web_search: bool = False,
         web_opts: Optional[Dict[str, Any]] = None,
+        history: Optional[List[Dict[str, str]]] = None,   # ⬅️ NEW
     ) -> Dict[str, Any]:
-        """Unified completion. Saat use_web_search=True, gunakan model web-search preview
-        TANPA parameter temperature/top_p."""
+        """
+        Unified completion.
+        Now supports chat history: messages = [system] + history + [user].
+        Saat use_web_search=True, gunakan model web-search preview TANPA temperature/top_p.
+        """
+
         # Fallback lokal/dev
         if not self._client_ok():
             text = self._to_msg_content(user)
@@ -87,10 +92,20 @@ class OpenAILlm(LlmPort):
             }
 
         self._ensure_client()
-        messages = [
-            {"role": "system", "content": system or SYSTEM_PROMPT},
-            {"role": "user", "content": self._to_msg_content(user)},
-        ]
+
+        # --- SUSUN CHAT MESSAGES --- #
+        messages: List[Dict[str, str]] = [{"role": "system", "content": system or SYSTEM_PROMPT}]
+
+        # history diharapkan list[{"role":"user"|"assistant"|"system","content":str}]
+        if history:
+            for h in history:
+                role = (h.get("role") or "").strip()
+                content = self._to_msg_content(h.get("content"))
+                if role in ("user", "assistant", "system") and content:
+                    messages.append({"role": role, "content": content})
+
+        # user terakhir
+        messages.append({"role": "user", "content": self._to_msg_content(user)})
 
         if not use_web_search:
             rsp = await self._client.chat.completions.create(
@@ -105,13 +120,14 @@ class OpenAILlm(LlmPort):
                 "sources": [],
                 "key_facts": [],
                 "confidence": "medium",
+                "model": self.chat_model
             }
 
         # Web search preview — JANGAN sertakan temperature/top_p
         opts = web_opts or {}
         rsp = await self._client.chat.completions.create(
             model=self.search_model,
-            messages=messages,
+            messages=messages,                # ⬅️ PENTING: kirim history juga
             web_search_options=opts,
         )
         msg = rsp.choices[0].message
@@ -126,10 +142,7 @@ class OpenAILlm(LlmPort):
                     if a.get("type") == "url_citation":
                         uc = a.get("url_citation") or {}
                         if uc.get("url"):
-                            sources.append({
-                                "url": uc.get("url"),
-                                "title": uc.get("title") or "",
-                            })
+                            sources.append({"url": uc.get("url"), "title": uc.get("title") or ""})
                 except Exception:
                     continue
 
@@ -138,4 +151,5 @@ class OpenAILlm(LlmPort):
             "sources": sources,
             "key_facts": [],
             "confidence": "high" if sources else "medium",
+            "model": self.search_model,
         }
